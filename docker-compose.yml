@@ -1,0 +1,13 @@
+volumes:
+  ip2country_db:
+      name: ip2country_db
+
+services:
+  app:
+    container_name: ip2country
+    image: somik123/ip2country
+    restart: unless-stopped
+    ports:
+      - 8080:80
+    volumes:
+      - ip2country_db:/var/www/html/db/
