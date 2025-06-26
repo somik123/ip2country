@@ -340,6 +340,23 @@ if ($_REQUEST['ip']) {
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>IP2Country Finder</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.7/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-LN+7fdVzj6u52u30Kp6M/trliBMCMKTyK833zpbD+pXdCLuTusPj697FH4R/5mcr" crossorigin="anonymous">
+    <script>
+        function post_data() {
+            let ip = document.getElementById("ip").value;
+            if(ip.length <8) return false;
+
+            document.getElementById("raw_data").style.display = "";
+            document.getElementById("raw_data").innerHTML = "Loading...";
+
+            let http = new XMLHttpRequest();
+            http.open("GET", "./?ip=" + ip, true);
+            http.send();
+            http.onload = function() {
+                document.getElementById("raw_data").innerHTML = http.responseText;
+            }
+            return false;
+        }
+    </script>
 </head>
 
 <body data-bs-theme="dark">
@@ -348,26 +365,28 @@ if ($_REQUEST['ip']) {
         <form method="POST" action="./">
             Search IP:
             <div class="input-group mb-3">
-                <input type="text" name="ip" class="form-control" placeholder="IP address" aria-label="IPv4 or IPv6 address" aria-describedby="button-addon2">
-                <button class="btn btn-outline-secondary" type="submit" id="button-addon2">Search</button>
+                <input type="text" name="ip" id="ip" class="form-control" placeholder="IP address" aria-label="IPv4 or IPv6 address" aria-describedby="button-addon2">
+                <button class="btn btn-outline-secondary" type="submit" onclick="return post_data();">Search</button>
             </div>
             <p class="fs-6"><a href="./?update">Update Database</a></p>
         </form>
 
         <div>
-            <pre>
+            <pre id="raw_data" class="border p-3" style="display: none;"></pre>
             <?php
             if (isset($_REQUEST['update'])) {
-                echo "\n";
+                echo '<pre id="raw_data" class="border p-3">';
                 $ip2c = new ip2country;
                 $ip2c->update();
                 echo "Done! Redirecting in 3 seconds...";
+                echo "</pre>";
                 echo '<meta http-equiv="refresh" content="3; url=./" />';
             }
             ?>
-            </pre>
+
         </div>
     </div>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.7/dist/js/bootstrap.bundle.min.js" integrity="sha384-ndDqU0Gzau9qJ1lfW4pNLlhNTkCfHzAVBReH9diLvGRem5+R9g2FzA8ZGN954O5Q" crossorigin="anonymous"></script>
 </body>
 
 </html>
