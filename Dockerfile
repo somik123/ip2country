@@ -20,13 +20,15 @@ RUN apt update \
 
 # Copy startup file
 COPY start.sh /start.sh
-# Copy index.php
-COPY index.php /var/www/html/index.php
+
+# Copy app files
+ADD index.php favicon.ico /var/www/html
+ADD ico /var/www/html/ico/
 
 WORKDIR /var/www/html
 
 RUN chmod +x /start.sh \
-    && mkdir /var/www/html/db \
+    && mkdir -p /var/www/html/db \
     && chown -R www-data:www-data /var/www/html \
     && sed -i -e "s/server_tokens off\;/server_tokens off\;\\n        client_max_body_size 500M\;/g" /etc/nginx/nginx.conf \
     && echo \

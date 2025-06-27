@@ -117,6 +117,15 @@ class ip2country
         }
     }
 
+    function is_ipv6($ip)
+    {
+        if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4))
+            return false;
+        else if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6))
+            return true;
+        else
+            return null;
+    }
 
     function populate_db()
     {
@@ -133,32 +142,35 @@ class ip2country
 
     function get_country($ip_raw)
     {
+        $is_ipv6 = $this->is_ipv6($ip_raw);
+        if ($is_ipv6 === null)
+            return "Not valid IPv4 or IPv6 address.";
+
         if (file_exists($this->db_file))
-            return $this->get_country_db($ip_raw);
+            return $this->get_country_db($ip_raw, $is_ipv6);
         else
-            return $this->get_country_csv($ip_raw);
+            return $this->get_country_csv($ip_raw, $is_ipv6);
     }
 
-    function get_country_db($ip_raw)
+    function get_country_db($ip_raw, $ipv6 = false)
     {
         $req_start = microtime(true);
 
-        if (stristr($ip_raw, ":") === false) {
+        if ($ipv6 === false) {
             $ip = ip2long($ip_raw);
-            $is_ipv6 = false;
+            $prefix = "ipv4";
         } else {
             $ip_str = gmp_import(inet_pton($ip_raw));
             $ip = gmp_strval($ip_str);
-            $is_ipv6 = true;
+            $prefix = "ipv6";
         }
+        if ($ip === false)
+            return "Invalid IP address.";
 
         $db = new SQLite3($this->db_file, SQLITE3_OPEN_READONLY);
         if (!$db)
             die("Cannot open database file: {$this->db_file}");
         $db->busyTimeout(5000);
-
-        $prefix = $is_ipv6 ? "ipv6" : "ipv4";
-
         $result = $db->query("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE '{$prefix}_%'");
 
         $db_tables = array();
@@ -168,11 +180,7 @@ class ip2country
 
         $country_list = array();
         foreach ($db_tables as $db_table) {
-            $stmt = $db->prepare("
-                SELECT start, end, country FROM {$db_table}
-                WHERE start <= :ip AND end >= :ip
-                LIMIT 100
-            ");
+            $stmt = $db->prepare("SELECT start, end, country FROM {$db_table} WHERE start <= :ip AND end >= :ip LIMIT 100");
 
             $stmt->bindValue(':ip', $ip, SQLITE3_TEXT);
             $result = $stmt->execute();
@@ -209,11 +217,11 @@ class ip2country
         );
     }
 
-    function get_country_csv($ip_raw)
+    function get_country_csv($ip_raw, $ipv6 = false)
     {
         $req_start = microtime(true);
 
-        if (stristr($ip_raw, ":") === false) {
+        if ($ipv6 === false) {
             $ip = ip2long($ip_raw);
             $db = $this->ipv4_db;
         } else {
@@ -222,7 +230,8 @@ class ip2country
             $db = $this->ipv6_db;
         }
         if ($ip === false)
-            return "Invalid";
+            return "Invalid IP address.";
+
         $country_list = array();
         foreach (glob("{$db}*.csv") as $file) {
             foreach ($this->readLines($file) as $line) {
@@ -339,11 +348,17 @@ if ($_REQUEST['ip']) {
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>IP2Country Finder</title>
+
+    <link rel="apple-touch-icon" sizes="180x180" href="./ico/apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="./ico/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="./ico/favicon-16x16.png">
+    <link rel="manifest" href="./ico/site.webmanifest">
+
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.7/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-LN+7fdVzj6u52u30Kp6M/trliBMCMKTyK833zpbD+pXdCLuTusPj697FH4R/5mcr" crossorigin="anonymous">
     <script>
         function post_data() {
             let ip = document.getElementById("ip").value;
-            if(ip.length <8) return false;
+            if (ip.length < 8) return false;
 
             document.getElementById("raw_data").style.display = "";
             document.getElementById("raw_data").innerHTML = "Loading...";
