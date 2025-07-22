@@ -22,7 +22,7 @@ RUN apt update \
 COPY start.sh /start.sh
 
 # Copy app files
-ADD index.php favicon.ico /var/www/html
+ADD index.php favicon.ico /var/www/html/
 ADD ico /var/www/html/ico/
 
 WORKDIR /var/www/html

@@ -62,6 +62,23 @@ class ip2country
         }
     }
 
+    function ensure_db_exists()
+    {
+        // Check if the database file exists
+        if (!file_exists($this->db_file)) {
+            echo "<pre>";
+            $this->update();
+            echo "</pre>";
+            if (!file_exists($this->db_file)) {
+                die("Database file does not exist after update. Please check the update process.");
+            } else {
+                echo "Database file created successfully.\n";
+                echo "<meta http-equiv='refresh' content='0; url=./' />";
+                die();
+            }
+        }
+    }
+
     function update()
     {
         $ipv4_links = $this->csv_links['ipv4'];
@@ -332,9 +349,12 @@ class ip2country
 // Usage
 // ----------
 
+$ip2c = new ip2country;
+
+// Ensure the database exists before processing requests
+$ip2c->ensure_db_exists();
 
 if ($_REQUEST['ip']) {
-    $ip2c = new ip2country;
     header('Content-Type: application/json');
     echo json_encode($ip2c->get_country($_REQUEST['ip']), JSON_PRETTY_PRINT);
     die();
