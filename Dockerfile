@@ -38,6 +38,9 @@ RUN chmod +x /start.sh \
     root /var/www/html; \n\
     index index.php index.html index.htm index.nginx-debian.html; \n\
     server_name _; \n\
+    location ~ ^/api/([a-zA-Z0-9]+)(?:/([a-zA-Z0-9:=\+\.\-]+))?$ { \n\
+        rewrite ^/api/([a-zA-Z0-9]+)(?:/([a-zA-Z0-9:=\+\.\-]+))?$ /index.php?mode=\$1&ip=\$2 last; \n\
+    } \n\
     location / { \n\
             try_files \$uri \$uri/ =404; \n\
     } \n\

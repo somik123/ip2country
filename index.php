@@ -3,8 +3,11 @@
 /**
  * Author: Somik Khan
  * @copyright 2025
- * Permissions: Editing or non-commercial usage
+ * Permissions: Editing or non-commercial usage is allowed.
+ * Redistribution: Allowed with proper attribution.
  * Prohibition: Sale or commercial usage.
+ * This script is provided as-is, without any warranty.
+ * Use at your own risk.
  */
 
 set_time_limit(300);
@@ -47,8 +50,26 @@ class ip2country
         ),
     );
 
+    var $local_ip_ranges;
+
     function __construct()
     {
+        // Initialize local IP ranges
+        $this->local_ip_ranges = array(
+            "ipv4" => [
+                [ip2long('10.0.0.0'),   ip2long('10.255.255.255')],
+                [ip2long('172.16.0.0'),  ip2long('172.31.255.255')],
+                [ip2long('192.168.0.0'),  ip2long('192.168.255.255')],
+            ],
+
+            "ipv6" => [
+                [gmp_strval(gmp_import(inet_pton('fc00::'))),   gmp_strval(gmp_import(inet_pton('fdff:ffff:ffff:ffff:ffff:ffff:ffff:ffff')))],
+                [gmp_strval(gmp_import(inet_pton('fe80::'))),   gmp_strval(gmp_import(inet_pton('febf:ffff:ffff:ffff:ffff:ffff:ffff:ffff')))],
+                [gmp_strval(gmp_import(inet_pton('::1'))),      gmp_strval(gmp_import(inet_pton('::1')))],
+            ]
+        );
+
+        // Ensure directories exist
         if (!file_exists($this->ipv4_db) || !file_exists($this->ipv6_db) || !file_exists($this->tmp_dir)) {
             try {
                 mkdir($this->ipv4_db, 0755, true);
@@ -73,7 +94,6 @@ class ip2country
                 die("Database file does not exist after update. Please check the update process.");
             } else {
                 echo "Database file created successfully.\n";
-                echo "<meta http-equiv='refresh' content='0; url=./' />";
                 die();
             }
         }
@@ -99,11 +119,14 @@ class ip2country
     {
         // Download all CSVs
         for ($i = 1; $i <= count($links); $i++) {
-            $link = $links[$i - 1];
+            $link = trim($links[$i - 1]);
             $filename = $db_dir . basename($link);
+
             // Download the file
+            echo "Downloading: $link\n";
             file_put_contents($filename, file_get_contents($link));
-            echo file_exists($filename) ? "Downloaded: $filename\n" : "Failed to download: $filename\n";
+            echo file_exists($filename) ? " -- Done\n" : " -- Failed to download to: $filename\n";
+
             $ext = pathinfo($filename, PATHINFO_EXTENSION);
             if (strtolower($ext) === "zip") {
                 $zip = new ZipArchive;
@@ -157,13 +180,24 @@ class ip2country
         }
     }
 
-    function get_country($ip_raw)
+    function get_country($ip_raw, $csv = false)
     {
         $is_ipv6 = $this->is_ipv6($ip_raw);
         if ($is_ipv6 === null)
             return "Not valid IPv4 or IPv6 address.";
 
-        if (file_exists($this->db_file))
+        if ($this->is_local_ip($ip_raw, $is_ipv6)) {
+            return array(
+                "ip" => $ip_raw,
+                "dec" => "Local IP",
+                "country" => "Local",
+                "confidence" => "100%",
+                "raw_country" => array("Local"),
+                "time_taken" => "0 ms",
+            );
+        }
+
+        if (file_exists($this->db_file) && !$csv)
             return $this->get_country_db($ip_raw, $is_ipv6);
         else
             return $this->get_country_csv($ip_raw, $is_ipv6);
@@ -211,15 +245,9 @@ class ip2country
             }
         }
 
-        // Step 1: Count occurrences
-        if (!empty($country_list)) {
-            $counts = array_count_values($country_list);
-
-            // Step 2: Get most common country and total items
-            $mostCommonCountry = array_keys($counts, max($counts))[0];
-            $total = count($country_list);
-            $confidence = ($counts[$mostCommonCountry] / $total) * 100;
-        }
+        $reply = $this->calculate_confidence($country_list);
+        $mostCommonCountry = $reply['country'];
+        $confidence = $reply['confidence'];
 
         $req_end = microtime(true);
         $time_taken = round(($req_end - $req_start) * 1000, 2); // in milliseconds
@@ -228,7 +256,7 @@ class ip2country
             "ip" => $ip_raw,
             "dec" => $ip,
             "country" => $mostCommonCountry,
-            "confidence" => round($confidence, 2) . "%",
+            "confidence" => $confidence,
             "raw_country" => $country_list,
             "time_taken" => $time_taken . " ms",
         );
@@ -263,15 +291,9 @@ class ip2country
             }
         }
 
-        // Step 1: Count occurrences
-        if (!empty($country_list)) {
-            $counts = array_count_values($country_list);
-
-            // Step 2: Get most common country and total items
-            $mostCommonCountry = array_keys($counts, max($counts))[0];
-            $total = count($country_list);
-            $confidence = ($counts[$mostCommonCountry] / $total) * 100;
-        }
+        $reply = $this->calculate_confidence($country_list);
+        $mostCommonCountry = $reply['country'];
+        $confidence = $reply['confidence'];
 
         $req_end = microtime(true);
         $time_taken = round(($req_end - $req_start) * 1000, 2); // in milliseconds
@@ -280,11 +302,51 @@ class ip2country
             "ip" => $ip_raw,
             "dec" => $ip,
             "country" => $mostCommonCountry,
-            "confidence" => round($confidence, 2) . "%",
+            "confidence" => $confidence,
             "raw_country" => $country_list,
             "time_taken" => $time_taken . " ms",
         );
     }
+
+    function calculate_confidence($country_list)
+    {
+        $confidence = 0;
+        $mostCommonCountry = "Unknown";
+
+        if (!empty($country_list) && count($country_list) > 2) {
+            $counts = array_count_values($country_list);
+
+            // Step 2: Get most common country and total items
+            $mostCommonCountry = array_keys($counts, max($counts))[0];
+            $total = count($country_list);
+            $confidence = ($counts[$mostCommonCountry] / $total) * 100;
+        }
+
+        return array(
+            "country" => $mostCommonCountry,
+            "confidence" => round($confidence, 2) . "%"
+        );
+    }
+
+    function is_local_ip($ip_raw, $ipv6 = false)
+    {
+
+        if ($ipv6 === false) {
+            $ip = ip2long($ip_raw);
+            $db = $this->local_ip_ranges["ipv4"];
+        } else {
+            $ip_str = gmp_import(inet_pton($ip_raw));
+            $ip = gmp_strval($ip_str);
+            $db = $this->local_ip_ranges["ipv6"];
+        }
+        foreach ($db as $range) {
+            if ($ip >= $range[0] && $ip <= $range[1]) {
+                return true;
+            }
+        }
+        return false;
+    }
+
 
 
     function readLines($path)
@@ -349,16 +411,35 @@ class ip2country
 // Usage
 // ----------
 
-$ip2c = new ip2country;
+if ($_REQUEST['mode']) {
+    $mode = $_REQUEST['mode'];
+    $ip2c = new ip2country;
+    if ($mode === "setup") {
+        $ip2c->ensure_db_exists();
+        die("Database is ready. You can now search IPs.");
+    } elseif (($_REQUEST['mode'] ?? '') === 'update') {
+        $ip2c->update();
+    } elseif (in_array($mode, array("v1", "v2", "b64"))) {
+        if ($_REQUEST['ip']) {
+            $csv = $mode === "v1" ? true : false;
 
-// Ensure the database exists before processing requests
-$ip2c->ensure_db_exists();
+            if ($mode === "b64") {
+                $ip = base64_decode($_REQUEST['ip']);
+                if ($ip === false) {
+                    echo json_encode(array("error" => "Invalid base64 encoded IP address."), JSON_PRETTY_PRINT);
+                    die();
+                }
+            } else {
+                $ip = $_REQUEST['ip'];
+            }
 
-if ($_REQUEST['ip']) {
-    header('Content-Type: application/json');
-    echo json_encode($ip2c->get_country($_REQUEST['ip']), JSON_PRETTY_PRINT);
+            header('Content-Type: application/json');
+            echo json_encode($ip2c->get_country($ip, $csv), JSON_PRETTY_PRINT);
+        }
+    }
     die();
 }
+
 ?>
 
 <!doctype html>
@@ -377,18 +458,52 @@ if ($_REQUEST['ip']) {
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.7/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-LN+7fdVzj6u52u30Kp6M/trliBMCMKTyK833zpbD+pXdCLuTusPj697FH4R/5mcr" crossorigin="anonymous">
     <script>
         function post_data() {
+            const rawDataElem = document.getElementById("raw_data");
+
             let ip = document.getElementById("ip").value;
             if (ip.length < 8) return false;
 
-            document.getElementById("raw_data").style.display = "";
-            document.getElementById("raw_data").innerHTML = "Loading...";
+            rawDataElem.style.display = "";
+            rawDataElem.innerHTML = "Loading...";
 
             let http = new XMLHttpRequest();
-            http.open("GET", "./?ip=" + ip, true);
+            http.open("GET", "./api/v2/" + ip, true);
             http.send();
             http.onload = function() {
-                document.getElementById("raw_data").innerHTML = http.responseText;
+                rawDataElem.innerHTML = http.responseText;
             }
+            return false;
+        }
+
+        function update_db() {
+            const rawDataElem = document.getElementById("raw_data");
+            rawDataElem.style.display = "";
+            rawDataElem.innerHTML = "Updating database...\n";
+
+            let http = new XMLHttpRequest();
+            http.open("GET", "./api/update", true);
+
+            let lastIndex = 0;
+            http.onprogress = function() {
+                // Get new chunk of text
+                let newText = http.responseText.substring(lastIndex);
+                lastIndex = http.responseText.length;
+
+                // Split by newline and append each new line
+                let lines = newText.split("\n");
+                lines.forEach(line => {
+                    if (line.trim() !== "") {
+                        rawDataElem.innerHTML += line + "\n";
+                    }
+                });
+                rawDataElem.scrollTop = rawDataElem.scrollHeight;
+            };
+
+            http.onload = function() {
+                rawDataElem.innerHTML += "Update complete.";
+            };
+
+            http.send();
             return false;
         }
     </script>
@@ -403,22 +518,11 @@ if ($_REQUEST['ip']) {
                 <input type="text" name="ip" id="ip" class="form-control" placeholder="IP address" aria-label="IPv4 or IPv6 address" aria-describedby="button-addon2">
                 <button class="btn btn-outline-secondary" type="submit" onclick="return post_data();">Search</button>
             </div>
-            <p class="fs-6"><a href="./?update">Update Database</a></p>
+            <p class="fs-6"><a href="#" onclick="return update_db();">Update Database</a></p>
         </form>
 
         <div>
             <pre id="raw_data" class="border p-3" style="display: none;"></pre>
-            <?php
-            if (isset($_REQUEST['update'])) {
-                echo '<pre id="raw_data" class="border p-3">';
-                $ip2c = new ip2country;
-                $ip2c->update();
-                echo "Done! Redirecting in 3 seconds...";
-                echo "</pre>";
-                echo '<meta http-equiv="refresh" content="3; url=./" />';
-            }
-            ?>
-
         </div>
     </div>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.7/dist/js/bootstrap.bundle.min.js" integrity="sha384-ndDqU0Gzau9qJ1lfW4pNLlhNTkCfHzAVBReH9diLvGRem5+R9g2FzA8ZGN954O5Q" crossorigin="anonymous"></script>

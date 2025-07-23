@@ -10,7 +10,7 @@ echo "Waiting for services to start..."
 sleep 5
 
 echo "Running initial setup..."
-curl http://127.0.0.1/
+curl --no-buffer http://127.0.0.1/api/setup
 
 echo "Monitoring logs..."
 tail -s 1 /var/log/nginx/*.log -f
