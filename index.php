@@ -180,7 +180,7 @@ class ip2country
         }
     }
 
-    function get_country($ip_raw, $csv = false)
+    function get_country($ip_raw, $from_csv = false)
     {
         $is_ipv6 = $this->is_ipv6($ip_raw);
         if ($is_ipv6 === null)
@@ -197,7 +197,7 @@ class ip2country
             );
         }
 
-        if (file_exists($this->db_file) && !$csv)
+        if (file_exists($this->db_file) && !$from_csv)
             return $this->get_country_db($ip_raw, $is_ipv6);
         else
             return $this->get_country_csv($ip_raw, $is_ipv6);
@@ -418,10 +418,11 @@ if ($_REQUEST['mode']) {
         $ip2c->ensure_db_exists();
         die("Database is ready. You can now search IPs.");
     } elseif (($_REQUEST['mode'] ?? '') === 'update') {
+        header("Content-Type: text/plain");
         $ip2c->update();
     } elseif (in_array($mode, array("v1", "v2", "b64"))) {
         if ($_REQUEST['ip']) {
-            $csv = $mode === "v1" ? true : false;
+            $from_csv = $mode === "v1" ? true : false;
 
             if ($mode === "b64") {
                 $ip = base64_decode($_REQUEST['ip']);
@@ -434,7 +435,8 @@ if ($_REQUEST['mode']) {
             }
 
             header('Content-Type: application/json');
-            echo json_encode($ip2c->get_country($ip, $csv), JSON_PRETTY_PRINT);
+            $data = $ip2c->get_country($ip, $from_csv);
+            echo json_encode($data, JSON_PRETTY_PRINT);
         }
     }
     die();
@@ -457,33 +459,41 @@ if ($_REQUEST['mode']) {
 
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.7/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-LN+7fdVzj6u52u30Kp6M/trliBMCMKTyK833zpbD+pXdCLuTusPj697FH4R/5mcr" crossorigin="anonymous">
     <script>
-        function post_data() {
+        function post_data(endpoint = "./api/v2/") {
+            const rawDataDiv = document.getElementById("raw_data_div");
             const rawDataElem = document.getElementById("raw_data");
 
             let ip = document.getElementById("ip").value;
             if (ip.length < 8) return false;
 
-            rawDataElem.style.display = "";
+            rawDataDiv.style.display = "";
             rawDataElem.innerHTML = "Loading...";
 
             let http = new XMLHttpRequest();
-            http.open("GET", "./api/v2/" + ip, true);
+            http.open("GET", endpoint + ip, true);
             http.send();
             http.onload = function() {
-                rawDataElem.innerHTML = http.responseText;
+                if (http.status >= 200 && http.status < 300) {
+                    rawDataElem.innerHTML = http.responseText;
+                } else {
+                    post_data("?mode=v2&ip=");
+                }
+
             }
             return false;
         }
 
-        function update_db() {
+        function update_db(endpoint = "./api/update") {
+            const rawDataDiv = document.getElementById("raw_data_div");
             const rawDataElem = document.getElementById("raw_data");
-            rawDataElem.style.display = "";
+
+            rawDataDiv.style.display = "";
             rawDataElem.innerHTML = "Updating database...\n";
 
             let http = new XMLHttpRequest();
-            http.open("GET", "./api/update", true);
+            http.open("GET", endpoint, true);
 
-            let lastIndex = 0;
+            let lastIndex = 0;1
             http.onprogress = function() {
                 // Get new chunk of text
                 let newText = http.responseText.substring(lastIndex);
@@ -500,7 +510,12 @@ if ($_REQUEST['mode']) {
             };
 
             http.onload = function() {
-                rawDataElem.innerHTML += "Update complete.";
+                if (http.status >= 200 && http.status < 300) {
+                    rawDataElem.innerHTML += "Database update completed successfully.";
+                } else {
+                    location.href = "?mode=update";
+                    rawDataElem.innerHTML += "Failed to update database. Please try again.";
+                }
             };
 
             http.send();
@@ -518,11 +533,25 @@ if ($_REQUEST['mode']) {
                 <input type="text" name="ip" id="ip" class="form-control" placeholder="IP address" aria-label="IPv4 or IPv6 address" aria-describedby="button-addon2">
                 <button class="btn btn-outline-secondary" type="submit" onclick="return post_data();">Search</button>
             </div>
-            <p class="fs-6"><a href="#" onclick="return update_db();">Update Database</a></p>
+            <p class="fs-6"><a href="./api/update" onclick="return update_db();">Update Database</a></p>
         </form>
 
-        <div>
-            <pre id="raw_data" class="border p-3" style="display: none;"></pre>
+        <div class="mb-3" id="raw_data_div" style="display: none;">
+            <h4>API Response</h4>
+            <pre id="raw_data" class="border p-3"></pre>
+        </div>
+        <div class="border p-3">
+            <h4>How to use</h4>
+            <p>To search an IP address, enter it in the input box above and click "Search". The response will be shown below.</p>
+            <p>To update the database, click on the "Update Database" link. This will download the latest IP to country mappings.</p>
+            <p>For API usage, you can access:</p>
+            <ul>
+                <li><code>/api/v1/{ip}</code> - Polls raw CSV files and returns JSON with country info</li>
+                <li><code>/api/v2/{ip}</code> - Polls sqlite database and returns JSON with country info</li>
+                <li><code>/api/b64/{base64_encoded_ip}</code> - Polls sqlite database and returns JSON with country info for base64 encoded IP</li>
+                <li><code>/api/setup</code> - Sets up folders, CSV files and database with the latest IP to country mappings (Runs on container startup)</li>
+                <li><code>/api/update</code> - Updates the database with the latest IP to country mappings</li>
+            </ul>
         </div>
     </div>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.7/dist/js/bootstrap.bundle.min.js" integrity="sha384-ndDqU0Gzau9qJ1lfW4pNLlhNTkCfHzAVBReH9diLvGRem5+R9g2FzA8ZGN954O5Q" crossorigin="anonymous"></script>
