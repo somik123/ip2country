@@ -406,11 +406,6 @@ class ip2country
     }
 }
 
-
-// ----------
-// Usage
-// ----------
-
 if ($_REQUEST['mode']) {
     $mode = $_REQUEST['mode'];
     $ip2c = new ip2country;
@@ -493,7 +488,7 @@ if ($_REQUEST['mode']) {
             let http = new XMLHttpRequest();
             http.open("GET", endpoint, true);
 
-            let lastIndex = 0;1
+            let lastIndex = 0;
             http.onprogress = function() {
                 // Get new chunk of text
                 let newText = http.responseText.substring(lastIndex);
@@ -530,7 +525,9 @@ if ($_REQUEST['mode']) {
         <form method="POST" action="./">
             Search IP:
             <div class="input-group mb-3">
-                <input type="text" name="ip" id="ip" class="form-control" placeholder="IP address" aria-label="IPv4 or IPv6 address" aria-describedby="button-addon2">
+                <input type="text" name="ip" id="ip" class="form-control" placeholder="IP address"
+                    aria-label="IPv4 or IPv6 address" aria-describedby="button-addon2"
+                    value="<?= $_REQUEST['ip'] ?? get_remote_ip() ?>" />
                 <button class="btn btn-outline-secondary" type="submit" onclick="return post_data();">Search</button>
             </div>
             <p class="fs-6"><a href="./api/update" onclick="return update_db();">Update Database</a></p>
@@ -558,3 +555,36 @@ if ($_REQUEST['mode']) {
 </body>
 
 </html>
+
+
+<?php
+
+function get_remote_ip()
+{
+    $ip_keys = [
+        'HTTP_CLIENT_IP',
+        'HTTP_X_FORWARDED_FOR',
+        'HTTP_CF_CONNECTING_IP', // Cloudflare
+        'HTTP_X_REAL_IP',
+        'HTTP_X_FORWARDED',
+        'HTTP_X_CLUSTER_CLIENT_IP',
+        'HTTP_FORWARDED_FOR',
+        'HTTP_FORWARDED',
+        'REMOTE_ADDR'
+    ];
+
+    foreach ($ip_keys as $key) {
+        if (!empty($_SERVER[$key])) {
+            $ip_list = explode(',', $_SERVER[$key]);
+            foreach ($ip_list as $ip) {
+                $ip = trim($ip);
+                if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE)) {
+                    return $ip;
+                }
+            }
+        }
+    }
+
+    // fallback (may return local/private IP)
+    return $_SERVER['REMOTE_ADDR'] ?? 'UNKNOWN';
+}
