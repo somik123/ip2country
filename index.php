@@ -420,7 +420,7 @@ if ($_REQUEST['mode']) {
         header('Content-Type: application/json');
         $ip = get_remote_ip();
         $out = array("status" => "success", "ip" => $ip);
-        echo json_encode($out, JSON_PRETTY_PRINT);
+        echo json_encode($out);
     } elseif (in_array($mode, array("v1", "v2", "b64"))) {
         if ($_REQUEST['ip']) {
             $from_csv = $mode === "v1" ? true : false;
