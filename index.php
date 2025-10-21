@@ -411,10 +411,16 @@ if ($_REQUEST['mode']) {
     $ip2c = new ip2country;
     if ($mode === "setup") {
         $ip2c->ensure_db_exists();
-        die("Database is ready. You can now search IPs.");
-    } elseif (($_REQUEST['mode'] ?? '') === 'update') {
+        echo "Database is ready. You can now search IPs.";
+    } elseif ($mode === 'update') {
         header("Content-Type: text/plain");
         $ip2c->update();
+        echo "Database updated successfully.";
+    } elseif ($mode === "ip") {
+        header('Content-Type: application/json');
+        $ip = get_remote_ip();
+        $out = array("status" => "success", "ip" => $ip);
+        echo json_encode($out, JSON_PRETTY_PRINT);
     } elseif (in_array($mode, array("v1", "v2", "b64"))) {
         if ($_REQUEST['ip']) {
             $from_csv = $mode === "v1" ? true : false;
@@ -546,6 +552,7 @@ if ($_REQUEST['mode']) {
                 <li><code>/api/v1/{ip}</code> - Polls raw CSV files and returns JSON with country info</li>
                 <li><code>/api/v2/{ip}</code> - Polls sqlite database and returns JSON with country info</li>
                 <li><code>/api/b64/{base64_encoded_ip}</code> - Polls sqlite database and returns JSON with country info for base64 encoded IP</li>
+                <li><code>/api/ip</code> - Returns the remote IP address of the client</li>
                 <li><code>/api/setup</code> - Sets up folders, CSV files and database with the latest IP to country mappings (Runs on container startup)</li>
                 <li><code>/api/update</code> - Updates the database with the latest IP to country mappings</li>
             </ul>
