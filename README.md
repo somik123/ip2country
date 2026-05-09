@@ -2,12 +2,12 @@
 
 This script will download IP to Country CSV files from multiple location and convert it to SQLite3 database for easy access.
 
-Retreve country by providing the IP in the format: https://example.com/?ip=1.1.1.1
+Retreve country by providing the IP in the format: https://example.com/api/v2/1.1.1.1
 
 Update the database weekly by running cron job:
 
 ```
-wget -qO- https://example.com/?update
+wget -qO- https://example.com/api/update
 ```
 
 ## How to use (with docker-compose)

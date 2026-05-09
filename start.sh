@@ -1,6 +1,6 @@
 #!/bin/sh
 echo "Starting services..."
-service php8.3-fpm start
+service php8.5-fpm start
 nginx -g "daemon off;" &
 
 echo "Setting permissions..."

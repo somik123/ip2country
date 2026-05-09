@@ -465,7 +465,7 @@ if ($_REQUEST['mode']) {
             const rawDataElem = document.getElementById("raw_data");
 
             let ip = document.getElementById("ip").value;
-            if (ip.length < 8) return false;
+            if (ip.length < 7) return false;
 
             rawDataDiv.style.display = "";
             rawDataElem.innerHTML = "Loading...";
