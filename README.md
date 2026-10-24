@@ -35,3 +35,5 @@ docker run -d -p 8080:80 -v ip2country_db:/var/www/html --name ip2country somik1
 ```
 
 > **Note:** that this will run the container with port `8080` on host mapped to the container's nginx running on port `80`.
+
+> Updated: 2026-10-24
